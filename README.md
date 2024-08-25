@@ -19,7 +19,7 @@ The primary goal of this project is to demonstrate the implementation of a serve
 
 ## Architecture
 
-Architecutre Diagram
+Architecture Diagram
 
 1. User uploads an image to the input S3 bucket
 2. S3 event triggers the Lambda function
