@@ -19,7 +19,7 @@ The primary goal of this project is to demonstrate the implementation of a serve
 
 ## Architecture
 
-![Architecture diagram](Cloud Architecture.png)
+![Cloud architecture](https://raw.githubusercontent.com/aclittle/serverless-image-processor/main/Cloud%20Architecture.png)
 
 1. User uploads an image to the input S3 bucket
 2. S3 event triggers the Lambda function
