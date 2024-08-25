@@ -108,7 +108,7 @@ arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p39-pillow:1
 
 **Solutions:** Implemented a two-bucket system, where the Lambda function processes images from the source bucket and uploads them to a separate destination bucket.
 
-## 2. Pillow Library in Lambda
+### 2. Pillow Library in Lambda
 
 **Issue:** Difficulty in including the Pillow library in the Lambda environment.
 
