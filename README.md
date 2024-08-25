@@ -106,14 +106,7 @@ arn:aws:lambda:us-east-1:770693421928:layer:Klayers-p39-pillow:1
 
 **Issue:** The Lambda function was triggering itself by uploading processed images back to the same bucket.
 
-**Solutions:** Implemented a check in the Lambda function to only process images in the root of the bucket, ignoring the 'processed/' prefix:
-
-```
-if not key.startswith('processed/'):
-    # Process the image
-else:
-    # Ignore already processed images
-```
+**Solutions:** Implemented a two-bucket system, where the Lambda function processes images from the source bucket and uploads them to a separate destination bucket.
 
 ## 2. Pillow Library in Lambda
 
