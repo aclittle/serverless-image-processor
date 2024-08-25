@@ -1,67 +1,83 @@
-import json
 import boto3
+import json
+import logging
 import os
+from io import BytesIO
 from PIL import Image
-import io
-import uuid
-import time
+from datetime import datetime
 
-s3 = boto3.client('s3')
+# Set up logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Initialize AWS clients
+s3_client = boto3.client('s3')
 dynamodb = boto3.resource('dynamodb')
 sns = boto3.client('sns')
 
-table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
-sns_topic_arn = os.environ['SNS_TOPIC_ARN']
+# Configuration
+OUTPUT_BUCKET = os.environ['OUTPUT_BUCKET']
+DYNAMODB_TABLE = os.environ['DYNAMODB_TABLE']
+SNS_TOPIC_ARN = os.environ['SNS_TOPIC_ARN']
+MAX_SIZE = 1024  # maximum dimension for resized image
 
-def lambda_handler(event, context):
-    # Get the S3 bucket and key from the event
-    bucket = event['Records'][0]['s3']['bucket']['name']
-    key = event['Records'][0]['s3']['object']['key']
-    
-    try:
-        # Download the image from S3
-        response = s3.get_object(Bucket=bucket, Key=key)
-        image_content = response['Body'].read()
-        
-        # Open the image using Pillow
-        img = Image.open(io.BytesIO(image_content))
-        
-        # Process the image (example: resize to 100x100)
-        img.thumbnail((100, 100))
-        
-        # Save the processed image
-        buffer = io.BytesIO()
+def resize_image(image_body):
+    with Image.open(BytesIO(image_body)) as img:
+        img.thumbnail((MAX_SIZE, MAX_SIZE))
+        buffer = BytesIO()
         img.save(buffer, format=img.format)
         buffer.seek(0)
+        return buffer
+
+def lambda_handler(event, context):
+    try:
+        # Get the object from the event
+        bucket = event['Records'][0]['s3']['bucket']['name']
+        key = event['Records'][0]['s3']['object']['key']
         
-        # Upload the processed image back to S3
-        processed_key = f"processed/{os.path.basename(key)}"
-        s3.put_object(Bucket=bucket, Key=processed_key, Body=buffer)
+        # Download the image from S3
+        response = s3_client.get_object(Bucket=bucket, Key=key)
+        image_body = response['Body'].read()
+        
+        # Resize the image
+        resized_image = resize_image(image_body)
+        
+        # Upload the resized image to the output bucket
+        output_key = f"resized-{key}"
+        s3_client.put_object(Bucket=OUTPUT_BUCKET, Key=output_key, Body=resized_image.getvalue())
         
         # Save metadata to DynamoDB
-        image_id = str(uuid.uuid4())
-        timestamp = int(time.time())
-        item = {
-            'ImageId': image_id,
-            'FileName': key,
-            'ProcessedFileName': processed_key,
-            'Status': 'Processed',
-            'UploadDate': timestamp,
-            'ProcessedDate': timestamp
-        }
-        table.put_item(Item=item)
+        table = dynamodb.Table(DYNAMODB_TABLE)
+        table.put_item(
+            Item={
+                'image_id': key,
+                'original_bucket': bucket,
+                'original_key': key,
+                'resized_bucket': OUTPUT_BUCKET,
+                'resized_key': output_key,
+                'timestamp': datetime.now().isoformat()
+            }
+        )
         
         # Send SNS notification
-        message = f"Image {key} has been processed successfully."
-        sns.publish(TopicArn=sns_topic_arn, Message=message)
+        sns.publish(
+            TopicArn=SNS_TOPIC_ARN,
+            Message=json.dumps({
+                'message': 'Image processed successfully',
+                'original_image': f"{bucket}/{key}",
+                'resized_image': f"{OUTPUT_BUCKET}/{output_key}"
+            }),
+            Subject='Image Processing Completed'
+        )
         
         return {
             'statusCode': 200,
             'body': json.dumps('Image processed successfully')
         }
+    
     except Exception as e:
-        print(f"Error processing image: {str(e)}")
+        logger.error(f"Error processing image: {str(e)}")
         return {
             'statusCode': 500,
-            'body': json.dumps(f'Error processing image: {str(e)}')
+            'body': json.dumps('Error processing image')
         }
