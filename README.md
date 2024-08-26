@@ -79,6 +79,7 @@ serverless deploy
   - Set the following environment variables:
     - `DYNAMODB_TABLE`: The name of your DynamoDB table
     - `SNS_TOPIC_ARN`: The ARN of your SNS topic
+    - `OUTPUT_BUCKET`: The name of your output S3 Bucket
 
 6. Configure S3 event trigger:
 
